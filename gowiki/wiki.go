@@ -5,6 +5,8 @@ import (
 	"io/ioutil"
 	"net/http"
 	"log"
+	"regexp"
+	"errors"
 )
 
 type Page struct {
@@ -14,6 +16,7 @@ type Page struct {
 
 var templatePages = template.Must(template.ParseFiles("edit.html",
 	"view.html", ))
+var validPath = regexp.MustCompile("^/(edit|save|view)/([a-zA-Z0-9]+)$")
 
 func (p *Page) save() error {
 	filename := p.Title + ".txt"
@@ -29,8 +32,20 @@ func loadPage(title string) (*Page, error) {
 	return &Page{Title: title, Body: body}, nil
 }
 
+func getTitle(w http.ResponseWriter, r *http.Request) (string, error) {
+	m := validPath.FindStringSubmatch(r.URL.Path)
+	if m == nil {
+		http.NotFound(w, r)
+		return "", errors.New("Invalid Page Title")
+	}
+	return m[2], nil // The title is the second subexpression.
+}
+
 func viewHandler(writer http.ResponseWriter, request *http.Request) {
-	title := request.URL.Path[len("/view/"):]
+	title, error := getTitle(writer, request)
+	if error != nil {
+		return
+	}
 	page, error := loadPage(title)
 	if error != nil {
 		http.Redirect(writer, request, "/edit/"+title, http.StatusFound)
@@ -40,7 +55,10 @@ func viewHandler(writer http.ResponseWriter, request *http.Request) {
 }
 
 func editHandler(writer http.ResponseWriter, request *http.Request) {
-	title := request.URL.Path[len("/edit/"):]
+	title, error := getTitle(writer, request)
+	if error != nil {
+		return
+	}
 	page, error := loadPage(title)
 	if error != nil {
 		page = &Page{Title: title}
@@ -49,7 +67,10 @@ func editHandler(writer http.ResponseWriter, request *http.Request) {
 }
 
 func saveHandler(writer http.ResponseWriter, request *http.Request) {
-	title := request.URL.Path[len("/save/"):]
+	title, error := getTitle(writer, request)
+	if error != nil {
+		return
+	}
 	body := request.FormValue("body")
 	page := &Page{Title: title, Body: []byte(body)}
 	page.save()
