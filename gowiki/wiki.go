@@ -54,8 +54,16 @@ func saveHandler(writer http.ResponseWriter, request *http.Request) {
 }
 
 func renderTemplate(writer http.ResponseWriter, templateName string, page *Page) {
-	pageTemplate, _ := template.ParseFiles(templateName + ".html")
-	pageTemplate.Execute(writer, page)
+	templatePage, error := template.ParseFiles(templateName + ".html")
+	if error != nil {
+		http.Error(writer, error.Error(), http.StatusInternalServerError)
+		return
+	}
+
+	error = templatePage.Execute(writer, page)
+	if error != nil {
+		http.Error(writer, error.Error(), http.StatusInternalServerError)
+	}
 }
 
 func main() {
