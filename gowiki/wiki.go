@@ -6,7 +6,6 @@ import (
 	"net/http"
 	"log"
 	"regexp"
-	"errors"
 )
 
 type Page struct {
@@ -32,20 +31,7 @@ func loadPage(title string) (*Page, error) {
 	return &Page{Title: title, Body: body}, nil
 }
 
-func getTitle(w http.ResponseWriter, r *http.Request) (string, error) {
-	m := validPath.FindStringSubmatch(r.URL.Path)
-	if m == nil {
-		http.NotFound(w, r)
-		return "", errors.New("Invalid Page Title")
-	}
-	return m[2], nil // The title is the second subexpression.
-}
-
-func viewHandler(writer http.ResponseWriter, request *http.Request) {
-	title, error := getTitle(writer, request)
-	if error != nil {
-		return
-	}
+func viewHandler(writer http.ResponseWriter, request *http.Request, title string) {
 	page, error := loadPage(title)
 	if error != nil {
 		http.Redirect(writer, request, "/edit/"+title, http.StatusFound)
@@ -54,11 +40,7 @@ func viewHandler(writer http.ResponseWriter, request *http.Request) {
 	renderTemplate(writer, "view", page)
 }
 
-func editHandler(writer http.ResponseWriter, request *http.Request) {
-	title, error := getTitle(writer, request)
-	if error != nil {
-		return
-	}
+func editHandler(writer http.ResponseWriter, request *http.Request, title string) {
 	page, error := loadPage(title)
 	if error != nil {
 		page = &Page{Title: title}
@@ -66,11 +48,7 @@ func editHandler(writer http.ResponseWriter, request *http.Request) {
 	renderTemplate(writer, "edit", page)
 }
 
-func saveHandler(writer http.ResponseWriter, request *http.Request) {
-	title, error := getTitle(writer, request)
-	if error != nil {
-		return
-	}
+func saveHandler(writer http.ResponseWriter, request *http.Request, title string) {
 	body := request.FormValue("body")
 	page := &Page{Title: title, Body: []byte(body)}
 	page.save()
@@ -84,9 +62,20 @@ func renderTemplate(writer http.ResponseWriter, templateName string, page *Page)
 	}
 }
 
+func makeHandler(function func(http.ResponseWriter, *http.Request, string)) http.HandlerFunc {
+	return func(writer http.ResponseWriter, request *http.Request) {
+		isValidPath := validPath.FindStringSubmatch(request.URL.Path)
+		if isValidPath == nil {
+			http.NotFound(writer, request)
+			return
+		}
+		function(writer, request, isValidPath[2])
+	}
+}
+
 func main() {
-	http.HandleFunc("/view/", viewHandler)
-	http.HandleFunc("/edit/", editHandler)
-	http.HandleFunc("/save/", saveHandler)
+	http.HandleFunc("/view/", makeHandler(viewHandler))
+	http.HandleFunc("/edit/", makeHandler(editHandler))
+	http.HandleFunc("/save/", makeHandler(saveHandler))
 	log.Fatal(http.ListenAndServe(":8080", nil))
 }
