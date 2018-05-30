@@ -6,6 +6,7 @@ import (
 	"net/http"
 	"log"
 	"regexp"
+	"fmt"
 )
 
 type Page struct {
@@ -17,13 +18,13 @@ var templatePages = template.Must(template.ParseFiles("edit.html",
 	"view.html", ))
 var validPath = regexp.MustCompile("^/(edit|save|view)/([a-zA-Z0-9]+)$")
 
-func (p *Page) save() error {
-	filename := p.Title + ".txt"
-	return ioutil.WriteFile(filename, p.Body, 0600)
+func (page *Page) save() error {
+	filename := "data/" + page.Title + ".txt"
+	return ioutil.WriteFile(filename, page.Body, 0600)
 }
 
 func loadPage(title string) (*Page, error) {
-	filename := title + ".txt"
+	filename := "data/" + title + ".txt"
 	body, err := ioutil.ReadFile(filename)
 	if err != nil {
 		return nil, err
@@ -74,6 +75,9 @@ func makeHandler(function func(http.ResponseWriter, *http.Request, string)) http
 }
 
 func main() {
+	http.HandleFunc("/", func(writer http.ResponseWriter, request *http.Request) {
+		fmt.Fprintf(writer, "Welcome to bobos new website")
+	})
 	http.HandleFunc("/view/", makeHandler(viewHandler))
 	http.HandleFunc("/edit/", makeHandler(editHandler))
 	http.HandleFunc("/save/", makeHandler(saveHandler))
